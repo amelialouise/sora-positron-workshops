@@ -8,8 +8,9 @@ library(ggplot2)
 ui <- page_sidebar(
   title = "Workshop Cohort Builder",
   sidebar = sidebar(
+    width = 350,
+    open = "always",
     fileInput("file", "Upload Survey CSV", accept = ".csv"),
-    hr(),
     uiOutput("validation_status"),
     hr(),
     checkboxInput(
@@ -110,7 +111,7 @@ ui <- page_sidebar(
 - Paste email addresses of people who have already completed the training (one per line)
 
 ### Step 3: Find Cohorts
-- Set your maximum cohort size (default: 25)
+- Set your max and min cohort size (defaults: 20 and 10, respectively)
 - Click 'Find Optimal Cohorts' to generate groupings
 - The app ensures everyone is assigned to a cohort
 
@@ -467,11 +468,9 @@ server <- function(input, output, session) {
       card_header("Summary", class = "bg-primary text-white"),
       h4(
         paste0(
-          total_people,
-          " registrants distributed across ",
           total_cohorts,
           " viable cohort",
-          if (total_cohorts != 1) "s" else ""
+          if (total_cohorts != 1) "s found" else " found"
         ),
         class = "text-center my-3"
       ),
@@ -515,16 +514,13 @@ server <- function(input, output, session) {
       card(
         card_header(
           class = "bg-warning-subtle",
-          strong(paste0("\u26a0\ufe0f Almost-Viable: ", cohort$time_slot))
+          strong(paste0("\u26a0\ufe0f Needs: ", cohort$needed, " more"))
         ),
         p(
           paste0(
             "Current: ",
             cohort$count,
-            " registrants | Need: ",
-            cohort$needed,
-            " more to reach minimum of ",
-            input$min_cohort_size
+            " registrants"
           ),
           class = "text-warning fw-bold"
         ),
@@ -547,7 +543,7 @@ server <- function(input, output, session) {
               pageLength = 15,
               dom = "tip",
               paging = TRUE,
-              scrollY = "800px",
+              scrollY = "400px",
               scrollCollapse = FALSE
             ),
             rownames = FALSE
