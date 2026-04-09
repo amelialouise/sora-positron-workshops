@@ -29,7 +29,7 @@ Registration CSVs contain participant names, email addresses, and agency affilia
 1. **Never add real registration files to this repo** — not in `data/`, not anywhere.
 2. **Never paste registration data into code, comments, or documentation.**
 3. All processed cohort output CSVs must be saved to **SORA's private Google Drive**, not committed here.
-4. The `data/` folder in this repo is for sample/test data only. Sample files use fake names and placeholder emails (see `data/sample/`).
+4. The `data/` folder in this repo is for test data only. Sample files use fake names and placeholder emails (see `data/sample_registrations.csv`).
 5. If you're unsure whether something is safe to commit, **don't commit it**. Instead, ask an EC member first.
 
 ### How to handle registration data in practice
@@ -61,7 +61,7 @@ The `.gitignore` in this repo excludes `data/registrations/` as a safeguard, but
 | `app.R` | Shiny app source; edit here, redeploy to Posit Connect |
 | `docs/FAQ.md` | General FAQ to support workshop participants |
 | `docs/Positron_Workshop.pdf` | Posit's official workshop overview and contact info |
-| `data/sample/` | Fake sample CSV for testing the app locally |
+| `data/` | Fake sample CSV for testing the app locally |
 
 ---
 
@@ -77,7 +77,7 @@ install.packages(c("shiny", "bslib", "dplyr", "tidyr", "DT", "ggplot2"))
 shiny::runApp("app")
 ```
 
-Use the sample CSV in `data/sample/sample_registrations.csv` to test with non-sensitive data.
+Use the sample CSV in `data/sample_registrations.csv` to test with non-sensitive data.
 
 ### Deploying Updates to Posit Connect
 
