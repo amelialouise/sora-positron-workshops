@@ -28,16 +28,16 @@ ui <- page_sidebar(
     numericInput(
       "cohort_size",
       "Maximum cohort size:",
-      value = 25,
+      value = 20,
       min = 1,
-      max = 50
+      max = 25
     ),
     numericInput(
       "min_cohort_size",
       "Minimum cohort size:",
       value = 10,
-      min = 1,
-      max = 25
+      min = 5,
+      max = 10
     ),
     actionButton(
       "find_cohorts",
@@ -78,7 +78,7 @@ ui <- page_sidebar(
           uiOutput("cohort_cards")
         ),
         card(
-          card_header("Optimal Cohorts - Everyone Assigned"),
+          card_header("Optimal Cohorts = Everyone Assigned"),
           uiOutput("cohort_summary")
         )
       )
@@ -339,7 +339,7 @@ server <- function(input, output, session) {
             almost_assigned,
             " registrant",
             if (almost_assigned != 1) "s" else "",
-            " in time slots that need more sign-ups (see below)"
+            " in time slots that need more sign-ups (scroll for details)"
           ),
           class = "text-center text-warning"
         )
@@ -418,7 +418,7 @@ server <- function(input, output, session) {
         cohorts()$almost_cohorts[[i]]$participants %>%
           select(Name = name, Email = email, Level = level) %>%
           datatable(
-            options = list(pageLength = 10, dom = "ti", paging = FALSE),
+            options = list(pageLength = 5, dom = "ti", paging = FALSE),
             rownames = FALSE
           )
       })
