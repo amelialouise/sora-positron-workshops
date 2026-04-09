@@ -10,6 +10,8 @@ ui <- page_sidebar(
   sidebar = sidebar(
     fileInput("file", "Upload Survey CSV", accept = ".csv"),
     hr(),
+    uiOutput("validation_status"),
+    hr(),
     checkboxInput(
       "exclude_completed",
       "Exclude completed attendees",
@@ -132,6 +134,95 @@ ui <- page_sidebar(
 )
 
 server <- function(input, output, session) {
+  validate_upload <- function(df) {
+    errors <- character(0)
+
+    # Must have at least 5 columns — names don't matter, order does
+    if (ncol(df) < 5) {
+      errors <- c(
+        errors,
+        paste0(
+          "File must have at least 5 columns (level, name, email, availability, comments in that order). ",
+          "Found: ",
+          ncol(df),
+          "."
+        )
+      )
+      return(errors) # can't proceed without enough columns
+    }
+
+    # Rename positionally for validation purposes
+    check_df <- df
+    names(check_df)[1:5] <- c(
+      "level",
+      "name",
+      "email",
+      "availability",
+      "comments"
+    )
+    check_df <- mutate(check_df, across(everything(), trimws))
+
+    # Stop here — remaining checks need the columns to exist
+    if (length(errors) > 0) {
+      return(errors)
+    }
+
+    # No completely empty name or email
+    if (any(is.na(df$name) | trimws(df$name) == "")) {
+      errors <- c(errors, "One or more rows have a missing name.")
+    }
+    if (any(is.na(df$email) | trimws(df$email) == "")) {
+      errors <- c(errors, "One or more rows have a missing email.")
+    }
+
+    # Valid level values
+    valid_levels <- c("Beginner", "Intermediate", "Advanced")
+    bad_levels <- unique(df$level[
+      !df$level %in% valid_levels & !is.na(df$level)
+    ])
+    if (length(bad_levels) > 0) {
+      errors <- c(
+        errors,
+        paste0(
+          "Unrecognised level values: ",
+          paste(bad_levels, collapse = ", "),
+          ". Expected: Beginner, Intermediate, or Advanced."
+        )
+      )
+    }
+
+    # Valid time slots
+    valid_slots <- c(
+      "Morning, 8am - 10am",
+      "Morning, 10am - 12pm",
+      "Lunch, 12pm - 2pm",
+      "Afternoon, 2pm - 4pm",
+      "Evening, 4pm - 6pm"
+    )
+    all_slots <- unlist(lapply(df$availability, parse_time_slots))
+    bad_slots <- unique(all_slots[!all_slots %in% valid_slots])
+    if (length(bad_slots) > 0) {
+      errors <- c(
+        errors,
+        paste0(
+          "Unrecognised time slot(s): ",
+          paste(bad_slots, collapse = "; "),
+          ". Check for encoding issues or extra whitespace."
+        )
+      )
+    }
+
+    # At least one person has availability
+    if (all(is.na(df$availability) | trimws(df$availability) == "")) {
+      errors <- c(
+        errors,
+        "No availability data found. Check that the correct file was uploaded."
+      )
+    }
+
+    errors
+  }
+
   parse_time_slots <- function(time_string) {
     if (is.na(time_string) || time_string == "") {
       return(character(0))
@@ -143,7 +234,26 @@ server <- function(input, output, session) {
   survey_data <- reactive({
     req(input$file)
 
-    df <- read.csv(input$file$datapath, stringsAsFactors = FALSE)
+    df <- read.csv(
+      input$file$datapath,
+      stringsAsFactors = FALSE,
+      fileEncoding = "UTF-8-BOM"
+    )
+
+    # Validate shape before anything else
+    errs <- validate_upload(df)
+    validate(need(
+      length(errs) == 0,
+      paste(c("Upload validation failed:", errs), collapse = "\n• ")
+    ))
+
+    # Rename by position — column names from the survey tool are ignored
+    names(df)[1:5] <- c("level", "name", "email", "availability", "comments")
+
+    df %>%
+      select(level, name, email, availability, comments) %>%
+      mutate(across(everything(), trimws)) %>%
+      filter(!is.na(name) & name != "" & !is.na(email) & email != "")
     names(df) <- trimws(names(df))
 
     col_names <- names(df)
@@ -247,6 +357,38 @@ server <- function(input, output, session) {
       comments_data$comments,
       collapse = "\n\n"
     )
+  })
+
+  output$validation_status <- renderUI({
+    req(input$file)
+    df <- tryCatch(
+      read.csv(
+        input$file$datapath,
+        stringsAsFactors = FALSE,
+        fileEncoding = "UTF-8-BOM"
+      ),
+      error = function(e) NULL
+    )
+    if (is.null(df)) {
+      return(div(
+        class = "alert alert-danger mt-2",
+        "⛔ Could not read file. Is this a valid CSV?"
+      ))
+    }
+    names(df) <- trimws(tolower(names(df)))
+    errs <- validate_upload(df)
+    if (length(errs) == 0) {
+      div(
+        class = "alert alert-success mt-2",
+        paste0("✅ ", nrow(df), " registrants loaded successfully.")
+      )
+    } else {
+      div(
+        class = "alert alert-danger mt-2",
+        tags$strong("Upload errors:"),
+        tags$ul(lapply(errs, tags$li))
+      )
+    }
   })
 
   cohorts <- eventReactive(input$find_cohorts, {

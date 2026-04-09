@@ -1,0 +1,21 @@
+level,name,email,availability,comments
+Beginner,Alice Nguyen,alice.nguyen@example.com,"Morning, 8am - 10am;Morning, 10am - 12pm",
+Intermediate,Bob Martinez,bob.martinez@example.com,"Lunch, 12pm - 2pm;Afternoon, 2pm - 4pm",I'm excited to learn more about Positron!
+Advanced,Carol Kim,carol.kim@example.com,"Morning, 10am - 12pm;Lunch, 12pm - 2pm;Afternoon, 2pm - 4pm",
+Beginner,David Lee,david.lee@example.com,"Evening, 4pm - 6pm",Will this cover Python or just R?
+Intermediate,Eva Patel,eva.patel@example.com,"Morning, 8am - 10am;Lunch, 12pm - 2pm",
+Advanced,Frank Chen,frank.chen@example.com,"Afternoon, 2pm - 4pm;Evening, 4pm - 6pm",Hope we cover Quarto publishing in depth.
+Beginner,Grace Wu,grace.wu@example.com,"Morning, 8am - 10am;Morning, 10am - 12pm;Lunch, 12pm - 2pm",
+Intermediate,Henry Scott,henry.scott@example.com,"Lunch, 12pm - 2pm;Afternoon, 2pm - 4pm;Evening, 4pm - 6pm",
+Advanced,Irene Torres,irene.torres@example.com,"Morning, 10am - 12pm",Do we need to have R installed beforehand?
+Beginner,James Park,james.park@example.com,"Morning, 8am - 10am;Morning, 10am - 12pm;Afternoon, 2pm - 4pm",
+Intermediate,Karen Bell,karen.bell@example.com,"Lunch, 12pm - 2pm",
+Advanced,Luis Ramos,luis.ramos@example.com,"Morning, 8am - 10am;Evening, 4pm - 6pm",Looking forward to the AI features demo.
+Beginner,Maria Okonkwo,maria.okonkwo@example.com,"Afternoon, 2pm - 4pm;Evening, 4pm - 6pm",
+Intermediate,Nathan Ellis,nathan.ellis@example.com,"Morning, 10am - 12pm;Lunch, 12pm - 2pm;Afternoon, 2pm - 4pm",Can we get the recording afterwards?
+Advanced,Olivia Strand,olivia.strand@example.com,"Morning, 8am - 10am;Morning, 10am - 12pm;Lunch, 12pm - 2pm;Afternoon, 2pm - 4pm;Evening, 4pm - 6pm",
+Beginner,Paul Tran,paul.tran@example.com,"Evening, 4pm - 6pm",New to R — is this beginner friendly?
+Intermediate,Quinn Foster,quinn.foster@example.com,"Morning, 8am - 10am;Afternoon, 2pm - 4pm",
+Advanced,Rosa Mendez,rosa.mendez@example.com,"Lunch, 12pm - 2pm;Evening, 4pm - 6pm",
+Beginner,Sam Whitfield,sam.whitfield@example.com,"Morning, 10am - 12pm;Afternoon, 2pm - 4pm",
+Intermediate,Tina Adler,tina.adler@example.com,"Morning, 8am - 10am;Lunch, 12pm - 2pm;Evening, 4pm - 6pm",Will slides be shared after?
