@@ -22,3 +22,6 @@
 # RStudio files and junk
 .Rproj.user/
 .Renviron
+
+# Posit Connect misc
+.posit
