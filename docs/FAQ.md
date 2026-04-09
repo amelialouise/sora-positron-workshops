@@ -6,7 +6,7 @@
 
 ## About the Workshop
 
-### What is the Positron workshop?
+### What is the Positron + AI workshop?
 
 Positron is an AI-powered IDE for data science, built by Posit. The workshop is a 60-minute, guided, hands-on session for R and Python users exploring AI-assisted data science workflows. It runs in a pre-configured Posit cloud environment — no local setup required, just a web browser.
 
@@ -49,8 +49,6 @@ SORA's focus is on personal-driven professional development. We believe motivate
 ### Does SORA have ITI or EIS approval for these workshops?
 
 No. SORA does not seek, hold, nor manage ITI, EIS, or other agency-specific approvals.
-
-If you are attending on your own time using a personal device, agency approval requirements generally don't apply. We encourage this kind of participation for anyone navigating those questions.
 
 ---
 
