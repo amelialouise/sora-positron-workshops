@@ -514,7 +514,12 @@ server <- function(input, output, session) {
       card(
         card_header(
           class = "bg-warning-subtle",
-          strong(paste0("\u26a0\ufe0f Needs: ", cohort$needed, " more"))
+          strong(paste0(
+            cohort$time_slot,
+            ". \u26a0\ufe0f Needs: ",
+            cohort$needed,
+            " more"
+          ))
         ),
         p(
           paste0(
