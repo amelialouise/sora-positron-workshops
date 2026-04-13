@@ -1,3 +1,6 @@
+# Never save registration data
+data/registrations*
+
 # History files
 .Rhistory
 .Rapp.history
@@ -5,23 +8,16 @@
 # Session Data files
 .RData
 .RDataTmp
-
-# User-specific files
 .Ruserdata
-
-# Example code in package build process
-*-Ex.R
-
-# Output files from R CMD build
-/*.tar.gz
 
 # Rendered stuff
 /docs/FAQ_files
 /docs/FAQ.html
 
-# RStudio files and junk
+# RStudio files and misc OS junk
 .Rproj.user/
 .Renviron
+.DS_Store
 
 # Posit Connect misc
 .posit
