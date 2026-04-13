@@ -12,7 +12,7 @@ Resources and tools for managing registration and participation in the **State o
 
 The Workshop Cohort Builder is hosted on Posit Connect and available here:
 
-> **🚀 [Launch the Workshop Cohort Builder →](https://019d7067-60dd-ee8a-5c33-e8a8f69ba9de.share.connect.posit.cloud/)**
+> **🚀 [Launch the Workshop Cohort Builder v2.0→](https://019d799e-805a-87aa-0cb2-76b74d341670.share.connect.posit.cloud/)**
 
 Upload a registration CSV to visualize availability, generate optimal cohorts, and export assignments. No data is stored on the server, ever! All processing happens in the browser session like magic. Seriously, try it out. 
 

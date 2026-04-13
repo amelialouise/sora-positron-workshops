@@ -4,6 +4,172 @@ library(dplyr)
 library(tidyr)
 library(DT)
 library(ggplot2)
+library(lpSolve)
+
+# ---------------------------------------------------------------------------
+# ILP cohort solver
+#
+# Formulation (see docs/algorithm_methodology.txt for full derivation):
+#   Variables : x[i,j] in {0,1}  — assign registrant i to slot j
+#               y[j]   in {0,1}  — slot j forms a viable cohort
+#   Objective : maximise SUM x[i,j]  (total registrants placed)
+#   Constraints:
+#     C1  SUM_j x[i,j] <= 1                  (one slot per person)
+#     C2  x[i,j] <= a[i,j]                   (availability)
+#     C3  SUM_i x[i,j] <= max_size * y[j]    (max cohort / activation)
+#     C4  SUM_i x[i,j] >= min_size * y[j]    (min cohort / viability)
+# ---------------------------------------------------------------------------
+solve_cohorts_lp <- function(survey_df, expanded_df, max_size, min_size) {
+  people <- unique(survey_df$email)
+  n      <- length(people)
+
+  if (n == 0) return(list(cohorts = list(), almost_cohorts = list()))
+
+  time_slots <- c(
+    "Morning, 8am - 10am",
+    "Morning, 10am - 12pm",
+    "Lunch, 12pm - 2pm",
+    "Afternoon, 2pm - 4pm",
+    "Evening, 4pm - 6pm"
+  )
+  m <- length(time_slots)
+
+  # --- availability matrix -------------------------------------------------
+  avail <- matrix(0L, nrow = n, ncol = m)
+  for (i in seq_len(n)) {
+    person_slots <- expanded_df |> filter(email == people[i]) |> pull(slots)
+    for (j in seq_len(m)) {
+      if (time_slots[j] %in% person_slots) avail[i, j] <- 1L
+    }
+  }
+
+  # --- variable layout ------------------------------------------------------
+  # x[i,j] -> column (i-1)*m + j    (indices 1 .. n*m)
+  # y[j]   -> column n*m + j        (indices n*m+1 .. n*m+m)
+  n_vars <- n * m + m
+  x_idx  <- function(i, j) (i - 1L) * m + j
+  y_idx  <- function(j)     n * m + j
+
+  # --- objective ------------------------------------------------------------
+  obj <- c(rep(1, n * m), rep(0, m))
+
+  # --- constraints ----------------------------------------------------------
+  rows <- list()
+  rhs  <- numeric(0)
+  dirs <- character(0)
+
+  add_row <- function(r, b, d) {
+    rows[[length(rows) + 1L]] <<- r
+    rhs  <<- c(rhs,  b)
+    dirs <<- c(dirs, d)
+  }
+
+  # C1: each person in at most one slot
+  for (i in seq_len(n)) {
+    r <- rep(0, n_vars)
+    for (j in seq_len(m)) r[x_idx(i, j)] <- 1
+    add_row(r, 1, "<=")
+  }
+
+  # C2: availability (only need rows for unavailable pairs — upper-bound x to 0)
+  for (i in seq_len(n)) {
+    for (j in seq_len(m)) {
+      if (avail[i, j] == 0L) {
+        r <- rep(0, n_vars)
+        r[x_idx(i, j)] <- 1
+        add_row(r, 0, "<=")
+      }
+    }
+  }
+
+  # C3: max cohort size  —  SUM_i x[i,j] - max_size * y[j] <= 0
+  for (j in seq_len(m)) {
+    r <- rep(0, n_vars)
+    for (i in seq_len(n)) r[x_idx(i, j)] <- 1
+    r[y_idx(j)] <- -max_size
+    add_row(r, 0, "<=")
+  }
+
+  # C4: min cohort size  —  -SUM_i x[i,j] + min_size * y[j] <= 0
+  for (j in seq_len(m)) {
+    r <- rep(0, n_vars)
+    for (i in seq_len(n)) r[x_idx(i, j)] <- -1
+    r[y_idx(j)] <- min_size
+    add_row(r, 0, "<=")
+  }
+
+  const_mat <- do.call(rbind, rows)
+
+  # --- solve ----------------------------------------------------------------
+  result <- lpSolve::lp(
+    direction    = "max",
+    objective.in = obj,
+    const.mat    = const_mat,
+    const.dir    = dirs,
+    const.rhs    = rhs,
+    all.bin      = TRUE
+  )
+
+  if (result$status != 0) {
+    showNotification(
+      "LP solver could not find a feasible solution. Check min/max settings.",
+      type = "warning"
+    )
+    return(list(cohorts = list(), almost_cohorts = list()))
+  }
+
+  sol <- result$solution
+
+  # --- decode viable cohorts ------------------------------------------------
+  assigned_emails <- character(0)
+  cohort_list     <- list()
+  cohort_num      <- 1L
+
+  for (j in seq_len(m)) {
+    assigned_i <- which(
+      vapply(seq_len(n), function(i) sol[x_idx(i, j)], numeric(1)) > 0.5
+    )
+    if (length(assigned_i) == 0L) next
+
+    participants <- survey_df |>
+      filter(email %in% people[assigned_i]) |>
+      select(name, email, level)
+
+    cohort_list[[cohort_num]] <- list(
+      cohort_id    = cohort_num,
+      time_slot    = time_slots[j],
+      count        = length(assigned_i),
+      participants = participants,
+      status       = "viable"
+    )
+    assigned_emails <- c(assigned_emails, people[assigned_i])
+    cohort_num <- cohort_num + 1L
+  }
+
+  # --- almost-cohorts: unassigned people grouped by available slot ----------
+  unassigned_emails  <- setdiff(people, assigned_emails)
+  almost_cohort_list <- list()
+
+  if (length(unassigned_emails) > 0L) {
+    unassigned_avail <- expanded_df |> filter(email %in% unassigned_emails)
+    for (j in seq_len(m)) {
+      slot_people <- unassigned_avail |>
+        filter(slots == time_slots[j]) |>
+        select(name, email, level) |>
+        distinct()
+      if (nrow(slot_people) > 0L) {
+        almost_cohort_list[[time_slots[j]]] <- list(
+          time_slot    = time_slots[j],
+          count        = nrow(slot_people),
+          needed       = max(0L, min_size - nrow(slot_people)),
+          participants = slot_people
+        )
+      }
+    }
+  }
+
+  list(cohorts = cohort_list, almost_cohorts = almost_cohort_list)
+}
 
 ui <- page_sidebar(
   title = "Workshop Cohort Builder",
@@ -395,63 +561,12 @@ server <- function(input, output, session) {
   cohorts <- eventReactive(input$find_cohorts, {
     req(survey_data(), expanded_data())
 
-    max_size <- input$cohort_size
-    min_size <- input$min_cohort_size
-    all_people <- unique(survey_data()$email)
-    assigned_people <- character(0)
-    cohort_list <- list()
-    almost_cohort_list <- list()
-    cohort_num <- 1
-
-    while (length(assigned_people) < length(all_people)) {
-      unassigned <- setdiff(all_people, assigned_people)
-      unassigned_avail <- expanded_data() %>% filter(email %in% unassigned)
-
-      if (nrow(unassigned_avail) == 0) {
-        break
-      }
-
-      best_slot_info <- unassigned_avail %>%
-        group_by(slots) %>%
-        summarise(count = n(), .groups = "drop") %>%
-        arrange(desc(count)) %>%
-        slice(1)
-
-      best_slot <- best_slot_info$slots
-      best_count <- best_slot_info$count
-
-      cohort_participants <- unassigned_avail %>%
-        filter(slots == best_slot) %>%
-        select(name, email, level) %>%
-        distinct()
-
-      if (best_count >= min_size) {
-        cohort_participants <- cohort_participants %>%
-          slice(1:min(n(), max_size))
-
-        cohort_list[[cohort_num]] <- list(
-          cohort_id = cohort_num,
-          time_slot = best_slot,
-          count = nrow(cohort_participants),
-          participants = cohort_participants,
-          status = "viable"
-        )
-
-        assigned_people <- c(assigned_people, cohort_participants$email)
-        cohort_num <- cohort_num + 1
-      } else {
-        almost_cohort_list[[best_slot]] <- list(
-          time_slot = best_slot,
-          count = best_count,
-          needed = min_size - best_count,
-          participants = cohort_participants
-        )
-
-        assigned_people <- c(assigned_people, cohort_participants$email)
-      }
-    }
-
-    list(cohorts = cohort_list, almost_cohorts = almost_cohort_list)
+    solve_cohorts_lp(
+      survey_df    = survey_data(),
+      expanded_df  = expanded_data(),
+      max_size     = input$cohort_size,
+      min_size     = input$min_cohort_size
+    )
   })
 
   output$cohort_summary <- renderUI({

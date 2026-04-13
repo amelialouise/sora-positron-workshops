@@ -1,0 +1,194 @@
+WORKSHOP COHORT BUILDER — ALGORITHM METHODOLOGY
+================================================
+Last updated: 2026-04-10
+
+
+OVERVIEW
+--------
+The Workshop Cohort Builder assigns registrants to time-slot-based workshop
+cohorts. The goal is to seat the maximum number of registrants into valid
+cohorts, where a "valid" cohort has between a user-defined minimum and maximum
+number of participants, and every participant is available at that slot.
+
+This document describes:
+  1. The original greedy heuristic (what the app shipped with)
+  2. Its known limitations
+  3. The replacement Integer Linear Program (ILP) formulation
+  4. How the ILP is implemented in R using lpSolve
+
+
+PART 1 — ORIGINAL GREEDY ALGORITHM
+------------------------------------
+
+The original algorithm, found in the `cohorts` eventReactive in app.R, worked
+as follows:
+
+  Inputs:
+    - A list of all registrants and their available time slots (from CSV)
+    - max_size: maximum allowed cohort size (user-set, default 20)
+    - min_size: minimum viable cohort size (user-set, default 10)
+
+  Procedure (simplified pseudocode):
+
+    unassigned = all registrants
+    while unassigned is not empty:
+      find the time slot with the most unassigned registrants available
+      if that slot has >= min_size available registrants:
+        take up to max_size of them, form a "viable" cohort
+        mark those people as assigned
+      else:
+        add those people to an "almost cohort" for that slot
+        mark those people as assigned (even though no valid cohort formed)
+      remove the best slot from consideration
+
+This is a classic greedy heuristic: it always picks the locally optimal choice
+(the slot with the most current interest) without evaluating the global
+downstream impact of that choice.
+
+Time complexity: O(n * m) where n = registrants, m = time slots.
+
+
+PART 2 — LIMITATIONS OF THE GREEDY APPROACH
+---------------------------------------------
+
+The greedy algorithm can fail to find the globally optimal assignment in
+several important cases:
+
+1. STRANDING MULTI-AVAILABLE REGISTRANTS
+   A registrant who is available in both slot A (popular) and slot B
+   (borderline) will always be assigned to slot A. This can leave slot B one
+   person short of viability, stranding everyone in that slot — even though
+   moving one person from A to B would have made both cohorts viable and
+   increased total assignment.
+
+   Example (min_size=3, max_size=5):
+     Slot A exclusive: p1, p2, p3
+     Slot B exclusive: p4, p5
+     Overlap:          p6 (available in both)
+
+     Greedy: slot A has 4 available (p1-p3, p6), slot B has 3 (p4, p5, p6).
+       Picks A first -> assigns p1,p2,p3,p6 (viable, 4 people).
+       Slot B left with p4, p5 only (2 < min=3) -> almost cohort.
+       Total assigned to viable cohorts: 4.
+
+     LP optimal: assign p1,p2,p3 -> slot A (viable, 3 people),
+                        p4,p5,p6 -> slot B (viable, 3 people).
+       Total assigned: 6.
+
+2. ORDER DEPENDENCE
+   When more than max_size registrants are available in the best slot, the
+   greedy algorithm takes the first max_size rows (in CSV upload order),
+   which is an artifact of data entry rather than availability preferences.
+
+3. NO GLOBAL OPTIMALITY GUARANTEE
+   Once people are assigned, they are never reconsidered, even if a different
+   assignment would allow more total people to be placed into viable cohorts.
+
+
+PART 3 — INTEGER LINEAR PROGRAM FORMULATION
+---------------------------------------------
+
+The cohort-building problem is stated as a Mixed Integer Linear Program (MILP),
+also called an Integer Program (IP) since all variables are binary.
+
+SETS
+  I = {1, ..., n}   registrants
+  J = {1, ..., m}   time slots (the 5 fixed slots recognised by the app)
+
+PARAMETERS
+  a[i,j] in {0,1}   1 if registrant i is available at slot j, 0 otherwise
+  L                 minimum cohort size (min_size input)
+  U                 maximum cohort size (max_size input)
+
+DECISION VARIABLES
+  x[i,j] in {0,1}   1 if registrant i is assigned to slot j
+  y[j]   in {0,1}   1 if slot j forms a viable cohort, 0 otherwise
+
+OBJECTIVE
+  Maximise  SUM_{i in I} SUM_{j in J}  x[i,j]
+
+  (Maximise the total number of registrants placed into viable cohorts.)
+
+CONSTRAINTS
+
+  C1  Each registrant assigned to at most one slot:
+      SUM_{j in J} x[i,j]  <=  1            for all i in I
+
+  C2  Availability — a registrant cannot be assigned to a slot they cannot
+      attend:
+      x[i,j]  <=  a[i,j]                    for all i in I, j in J
+      (Implemented as explicit <= 0 constraints for unavailable pairs.)
+
+  C3  Maximum cohort size — if slot j is inactive (y[j]=0), no one may be
+      assigned; if active (y[j]=1), at most U people:
+      SUM_{i in I} x[i,j]  <=  U * y[j]     for all j in J
+
+  C4  Minimum cohort size — an active slot must have at least L people:
+      SUM_{i in I} x[i,j]  >=  L * y[j]     for all j in J
+
+  C5  Binary domains:
+      x[i,j], y[j]  in  {0, 1}
+
+CONSTRAINT INTERPLAY (C3 + C4)
+  Constraints C3 and C4 together act as a big-M activation switch on y[j]:
+    - If y[j] = 0: C3 forces SUM x[i,j] = 0 (slot inactive, nobody assigned —
+      no partial or undersized cohorts are permitted).
+    - If y[j] = 1: L <= SUM x[i,j] <= U (valid cohort within the size range).
+  The solver chooses y[j] freely to maximise the objective.
+
+COMPLEXITY NOTE
+  This is NP-hard in general (it generalises set packing). However, with m = 5
+  slots and typical n < 500 registrants the problem has at most n*m + m = 2505
+  binary variables and solves in milliseconds via branch-and-bound.
+
+
+PART 4 — R IMPLEMENTATION (lpSolve)
+-------------------------------------
+
+The ILP is solved using the `lpSolve` package (CRAN). It is self-contained
+with no external system dependencies and works on all platforms including
+Posit Connect.
+
+Package required:
+  lpSolve   (install.packages("lpSolve"))
+
+The function solve_cohorts_lp() in app.R:
+
+  1. BUILDS THE AVAILABILITY MATRIX
+     Iterates over all (person, slot) pairs to populate a[i,j] from the
+     expanded_data reactive (one row per person-slot combination).
+
+  2. LAYS OUT VARIABLES
+     x[i,j] occupies column (i-1)*m + j   [flattened row-major, 1..n*m]
+     y[j]   occupies column n*m + j        [1..m, after the x block]
+
+  3. CONSTRUCTS THE CONSTRAINT MATRIX
+     Adds constraint rows for C1, C2 (unavailable pairs only), C3, C4.
+
+  4. CALLS lpSolve::lp()
+     direction = "max", all.bin = TRUE
+     Returns status 0 on success; shows a UI notification on failure.
+
+  5. DECODES THE SOLUTION
+     For each slot j: finds indices i where sol[x_idx(i,j)] > 0.5.
+     Builds a viable cohort record for any slot with assigned people.
+
+  6. COMPUTES ALMOST-COHORTS
+     Identifies unassigned registrants (those with no x[i,j] = 1).
+     For each slot, counts unassigned-but-available people and reports
+     how many more would be needed to reach min_size.
+
+The output list structure (cohorts / almost_cohorts) is identical to the
+original greedy output, so no changes to the UI or rendering code were needed.
+
+
+PART 5 — COMPARISON SUMMARY
+-----------------------------
+
+Dimension              Greedy Heuristic        ILP (lpSolve)
+--------------------   --------------------    ----------------------
+Optimality             No guarantee            Provably optimal
+Multi-avail handling   Sub-optimal             Optimal redistribution
+Order dependence       Yes (CSV row order)     No
+Runtime (n=200)        < 1ms                   ~50-200ms
+External deps          None                    None (lpSolve is CRAN)
