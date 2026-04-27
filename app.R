@@ -688,16 +688,30 @@ server <- function(input, output, session) {
     content = function(file) {
       req(cohorts())
 
-      bind_rows(lapply(seq_along(cohorts()$cohorts), function(i) {
+      viable_df <- bind_rows(lapply(seq_along(cohorts()$cohorts), function(i) {
         cohort <- cohorts()$cohorts[[i]]
         cohort$participants %>%
           mutate(
             cohort_number = cohort$cohort_id,
             time_slot = cohort$time_slot,
-            cohort_size = cohort$count
+            cohort_size = cohort$count,
+            slots_available = as.integer(input$cohort_size) - cohort$count
           )
-      })) %>%
-        select(cohort_number, time_slot, cohort_size, name, email, level) %>%
+      }))
+
+      almost_df <- bind_rows(lapply(seq_along(cohorts()$almost_cohorts), function(i) {
+        cohort <- cohorts()$almost_cohorts[[i]]
+        cohort$participants %>%
+          mutate(
+            cohort_number = -i,
+            time_slot = cohort$time_slot,
+            cohort_size = cohort$count,
+            slots_available = NA_integer_
+          )
+      }))
+
+      bind_rows(viable_df, almost_df) %>%
+        select(cohort_number, time_slot, cohort_size, slots_available, name, email, level) %>%
         write.csv(file, row.names = FALSE)
     }
   )
