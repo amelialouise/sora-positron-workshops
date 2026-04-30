@@ -1,0 +1,56 @@
+SORA Workshop Email Templates — How to Use
+============================================
+
+Files in this folder
+--------------------
+- cohort_viable.md   — sent to each viable cohort (one send per cohort)
+- cohort_waitlist.md — sent to all non-viable / waiting-list registrants
+
+Copy-paste workflow (Gmail or Outlook web)
+------------------------------------------
+1. Open the template on GitHub in the browser (NOT the raw view).
+   The rendered view shows formatted headers, bold text, and the
+   open-seats table. The raw view shows literal **markdown** syntax,
+   which will paste in ugly.
+
+2. Select the email body text on the rendered page (everything from
+   the subject line down to the SORA EC sign-off).
+
+3. Copy (Cmd/Ctrl-C) and paste into the compose window in Gmail or
+   Outlook web. Both accept rich-text paste and will preserve the
+   formatting.
+
+4. Replace every {{placeholder}} before sending. Common ones:
+     {{N}}              — cohort number
+     {{Day, Month D}}   — scheduled date
+     {{time}} {{tz}}    — start/end time and time zone
+     {{reply-by date}}  — deadline for replies
+     {{org}}            — GitHub org slug in the FAQ link
+     {{slots_available}} (waitlist email only) — open seats per cohort
+
+5. Put the subject line in the Subject field, then move all
+   recipient addresses into the BCC field (NOT To/Cc) to protect
+   everyone's email privacy.
+
+Where the recipient list and seat counts come from
+--------------------------------------------------
+Both come from the CSV exported by the Cohort Builder app via the
+"Download Cohort Assignments" button (workshop_cohorts_<date>.csv).
+
+Viable cohort email:
+  - For each cohort_number > 0, BCC every email in that group.
+  - One send per cohort_number.
+
+Waitlist email:
+  - BCC every email where cohort_number < 0 (the non-viable rows).
+  - For the "open seats" table, list one row per cohort_number > 0:
+    use cohort_number, time_slot, and slots_available.
+  - Skip any cohort where slots_available == 0.
+
+Reminders before hitting send
+-----------------------------
+- Double-check that recipient addresses are in BCC, not To/Cc.
+- Re-read the email after pasting — Outlook in particular sometimes
+  mangles spacing on tables; tweak as needed.
+- Never paste registration data (names, agencies, etc.) into the
+  email body. Only the recipient's own email goes in BCC.
